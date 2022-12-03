@@ -40,6 +40,6 @@ public struct FiniteWheelPicker<V: Hashable, Label: View>: View {
                     return
                 }
             }
-            .background(SelectedPositionBackground())
+            .background(SelectedPositionBackground(height: 32))
     }
 }

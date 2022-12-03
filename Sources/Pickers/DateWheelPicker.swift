@@ -112,7 +112,7 @@ public struct DateWheelPicker: View {
                 }
             }
         }
-        .background(SelectedPositionBackground())
+        .background(SelectedPositionBackground(height: 32))
         .onChange(of: selection) { date in
             dateSelection = DateWheelPicker.timeRemovedDate(from: date)
             hourSelection = DateWheelPicker.hour(from: date)

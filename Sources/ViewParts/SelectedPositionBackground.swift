@@ -9,6 +9,9 @@
 import SwiftUI
 
 public struct SelectedPositionBackground: View {
+    
+    let height: CGFloat
+    
     var color: Color {
 #if os(iOS)
         return Color(.systemGray5)
@@ -17,12 +20,14 @@ public struct SelectedPositionBackground: View {
 #endif
     }
     
-    public init() {}
+    public init(height: CGFloat) {
+        self.height = height
+    }
     
     public var body: some View {
         color
-            .opacity(0.8)
-            .cornerRadius(4)
-            .frame(height: 32)
+            .opacity(0.5)
+            .cornerRadius(8)
+            .frame(height: height)
     }
 }
