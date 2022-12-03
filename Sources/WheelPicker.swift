@@ -26,19 +26,23 @@ public struct WheelPicker<DataSource: WheelPickerDataSource, Label: View>: View 
     @State private var lastFeedbackOffset = 0
     @State private var isFeedbackEnabled = false
     @State private var feedbackManager = FeedbackManager()
-    private let height: CGFloat = 180
-    private let fontSize: CGFloat = 22
+    private let height: CGFloat
+    private let fontSize: CGFloat
+    private let itemsPerWheelFront: Int
     private let frameLate: Double = 120
     
-    public init(selection: Binding<DataSource.T>, dataSource: DataSource, @ViewBuilder label: @escaping (DataSource.T?) -> Label) {
+    public init(selection: Binding<DataSource.T>, dataSource: DataSource, itemHeight: CGFloat = 22, itemsPerWheelFront: Int = 9, @ViewBuilder label: @escaping (DataSource.T?) -> Label) {
         self.selection = selection
         self.dataSource = dataSource
         self.label = label
+        self.fontSize = itemHeight
+        self.itemsPerWheelFront = itemsPerWheelFront
+        self.height = CGFloat(itemsPerWheelFront) * fontSize * 0.6
     }
     
     public var body: some View {
-        VStack(spacing: 6) {
-            ForEach(0..<9, id: \.self) { index in
+        VStack(spacing: 0) {
+            ForEach(0..<itemsPerWheelFront, id: \.self) { index in
                 label(item(at: index, translationHeight: translationHeight))
                     .font(.system(size: fontSize))
                     .opacity(opacity(at: index, translationHeight: translationHeight))
@@ -70,7 +74,7 @@ public struct WheelPicker<DataSource: WheelPickerDataSource, Label: View>: View 
                     if timer?.isValid ?? false {
                         timer?.invalidate()
                         self.timer = nil
-                        translationHeight = translationHeight.truncatingRemainder(dividingBy: 18)
+                        translationHeight = translationHeight.truncatingRemainder(dividingBy: truncatingRemainder)
                         draggingStartOffset = selectionOffset
                         draggingStartTranslationHeight = translationHeight
                         return
@@ -93,15 +97,14 @@ public struct WheelPicker<DataSource: WheelPickerDataSource, Label: View>: View 
                         return
                     }
                     let initialTranslation = translationHeight
-                    let wheelStopResolution = height / 10
                     let timeFromFirstGesture = value.time.timeIntervalSince(firstGestureValue.time)
                     let timeFromLastGesture = value.time.timeIntervalSince(lastGestureValue.time)
                     let translationDiffernce = reduce(translationHeight:value.translation.height - lastGestureValue.translation.height)
                     let reducedPredictedEndTranslation = reduce(translationHeight: value.predictedEndTranslation.height)
-                    
+
                     let isInertialRotation = timeFromFirstGesture < 0.1 || (timeFromFirstGesture < 0.15 && reducedPredictedEndTranslation > height)
                     let isMinimumRotation = (abs(reducedPredictedEndTranslation) < height * 2 && abs(translationDiffernce) < 2.0) || abs(reducedPredictedEndTranslation) < height * 1.5 || timeFromLastGesture > 0.01
-                    
+
                     var animatingTranslation: CGFloat = .zero
                     if !isInertialRotation && isMinimumRotation {
                         let translationFromCurrentSelection = initialTranslation.truncatingRemainder(dividingBy: wheelStopResolution)
@@ -125,14 +128,13 @@ public struct WheelPicker<DataSource: WheelPickerDataSource, Label: View>: View 
             if timer?.isValid ?? false {
                 timer?.invalidate()
                 timer = nil
-                translationHeight = translationHeight.truncatingRemainder(dividingBy: 18)
+                translationHeight = translationHeight.truncatingRemainder(dividingBy: truncatingRemainder)
                 draggingStartTranslationHeight = translationHeight
             } else {
                 draggingStartTranslationHeight = .zero
             }
             let translationOffset = dataSource.translationOffset(to: value, origin: selectionOffset)
             guard translationOffset != 0 else { return }
-            let wheelStopResolution = height / 10
             let translationHeight = -CGFloat(translationOffset) * wheelStopResolution - draggingStartTranslationHeight
             draggingStartOffset = selectionOffset
             animate(animatingTranslation: translationHeight, decelerationFrames: 60)
@@ -143,34 +145,39 @@ public struct WheelPicker<DataSource: WheelPickerDataSource, Label: View>: View 
 private extension WheelPicker {
     func item(at index: Int, translationHeight: CGFloat) -> DataSource.T? {
         let itemOffset: Int
-        let offset = index - 4
-        let digreesOffset = digreesTranslation(from: translationHeight)
-        if let draggingStartOffset = draggingStartOffset {
-            let indexOffset = -Int(digreesOffset / 18)
-            let selectionOffset = draggingStartOffset + indexOffset
-            itemOffset = selectionOffset + offset
-        } else {
-            itemOffset = selectionOffset + offset
-        }
+        let offset = index - Int(Double(itemsPerWheelFront) / 2.0)
+        itemOffset = selectionOffset + offset
         return dataSource.item(at: itemOffset)
     }
     
+    var wheelStopResolution: Double {
+        Double(height) / Double(itemsPerWheelFront - 1)
+    }
+    
+    func degrees(_ index: Int) -> Double {
+        (Double(index) * truncatingRemainder) - 90 // -90 ~ 90
+    }
+    
+    var truncatingRemainder: Double {
+        180.0 / Double(itemsPerWheelFront - 1)
+    }
+    
     func rotationDigrees(at index: Int, translationHeight: CGFloat) -> Double {
-        let digrees = Double((index + 1) * 18) - 90 // -90 ~ 90
-        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: 18)
+        let digrees = degrees(index)
+        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: truncatingRemainder)
         return (360 + digrees + offset).truncatingRemainder(dividingBy: 360)
     }
     
     func itemHeight(at index: Int, translationHeight: CGFloat) -> CGFloat {
-        let digrees = Double((index + 1) * 18) - 90 // -90 ~ 90
-        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: 18)
+        let digrees = degrees(index)
+        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: truncatingRemainder)
         let ratio = (90 - abs(digrees + offset)) / 90
         return max(fontSize * CGFloat(ratio), 0)
     }
     
     func opacity(at index: Int, translationHeight: CGFloat) -> Double {
-        let digrees = Double((index + 1) * 18) - 90
-        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: 18)
+        let digrees = degrees(index)
+        let offset = digreesTranslation(from: translationHeight).truncatingRemainder(dividingBy: truncatingRemainder)
         let translatedDigrees = abs(digrees + offset)
         if translatedDigrees < 20 {
             return (translatedDigrees / -40) + 1
@@ -186,10 +193,10 @@ private extension WheelPicker {
     
     // 回転中にitemの高さが減少するので、回転体全体の高さが変わらないように差分を加えて補正する
     func itemsHeightDifference(translationHeight: CGFloat) -> CGFloat {
-        let defaultItemsHeight = (0..<9).reduce(.zero) {
+        let defaultItemsHeight = (0..<itemsPerWheelFront).reduce(.zero) {
             $0 + itemHeight(at: $1, translationHeight: 0)
         }
-        let itemsHeight = (0..<9).reduce(.zero) {
+        let itemsHeight = (0..<itemsPerWheelFront).reduce(.zero) {
             $0 + itemHeight(at: $1, translationHeight: translationHeight)
         }
         return defaultItemsHeight - itemsHeight
@@ -199,13 +206,18 @@ private extension WheelPicker {
         translationHeight * 0.6 + draggingStartTranslationHeight
     }
     
-    func updateSelection(from translationHeight: CGFloat) {
+    func updateSelection(from translationHeight: Double, round rnd: Bool = false) {
         let digreesOffset = digreesTranslation(from: translationHeight)
         if let draggingStartOffset = draggingStartOffset {
-            let indexOffset = -Int(round(digreesOffset / 18))
+            let indexOffset: Int
+            if rnd {
+                indexOffset = -Int(round(digreesOffset / truncatingRemainder))
+            } else {
+                indexOffset = -Int(digreesOffset / truncatingRemainder)
+            }
             let newSelectionOffset = draggingStartOffset + indexOffset
             let digreesDifference = abs(lastDigreesTranslation - digreesOffset)
-            let remainder = abs(digreesOffset.truncatingRemainder(dividingBy: 18))
+            let remainder = abs(digreesOffset.truncatingRemainder(dividingBy: truncatingRemainder))
             let isFeedbackAllowed = digreesDifference > 0.8 || remainder < 1.0 || remainder > 17.0
             if isFeedbackEnabled, newSelectionOffset != lastFeedbackOffset, isFeedbackAllowed {
                 feedbackManager.generateFeedback()
@@ -230,11 +242,11 @@ private extension WheelPicker {
         let deceleration = -max(abs(animatingTranslation), height) / CGFloat(decelerationFrames * decelerationFrames)
         let decelerateFrames = Int(round(sqrt(abs(animatingTranslation / -deceleration))))
         let initialSpeed = -deceleration * CGFloat(decelerateFrames)
-        
+
         let maxTranslationLimit = dataSource.maxTranslation(draggingStartOffset: draggingStartOffset)
         let minTranslationLimit = dataSource.minTranslation(draggingStartOffset: draggingStartOffset)
         let translationRange = minTranslationLimit...maxTranslationLimit
-        
+
         guard initialSpeed != 0 else {
             draggingStartOffset = nil
             translationHeight = .zero
@@ -246,6 +258,7 @@ private extension WheelPicker {
             guard timerUpdateCount < timerRepeatCount, translationRange.contains(translationHeight) else {
                 timer.invalidate()
                 self.timer = nil
+                updateSelection(from: translationHeight, round: true)
                 updateSelectionBinding()
                 draggingStartOffset = nil
                 translationHeight = .zero

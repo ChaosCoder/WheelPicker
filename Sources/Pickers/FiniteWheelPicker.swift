@@ -15,7 +15,7 @@ public struct FiniteWheelPicker<V: Hashable, Label: View>: View {
     var label: (V?) -> Label
     
     public init(selection: Binding<V>, items: [V], accessibilityText: ((V) -> String)? = nil, @ViewBuilder label: @escaping (V?) -> Label) {
-        let dataSource = FiniteWheelPickerDataSource(items: items, initialSelection: selection.wrappedValue)
+        let dataSource = FiniteWheelPickerDataSource(items: items, initialSelection: selection.wrappedValue, itemsPerWheelFront: 9)
         _selection = selection
         _dataSource = State(initialValue: dataSource)
         self.accessibilityText = accessibilityText

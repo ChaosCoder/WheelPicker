@@ -11,10 +11,12 @@ import SwiftUI
 public struct FiniteWheelPickerDataSource<T: Hashable>: WheelPickerDataSource {
     public var items: [T]
     public var initialSelection: T
+    public var itemsPerWheelFront: Int
     
-    public init(items: [T], initialSelection: T) {
+    public init(items: [T], initialSelection: T, itemsPerWheelFront: Int) {
         self.items = items
         self.initialSelection = initialSelection
+        self.itemsPerWheelFront = itemsPerWheelFront
     }
     
     public func item(at offset: Int) -> T? {
